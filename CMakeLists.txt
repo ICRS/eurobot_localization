@@ -24,6 +24,6 @@
 
 set(CMAKE_CXX_STANDARD 11)
 find_package(OpenCV REQUIRED)
-add_executable( main main.cpp)
+add_executable( main main.cpp uart.cpp)
 target_link_libraries( main chilitags_static )
 target_link_libraries( main ${OpenCV_LIBS} )
