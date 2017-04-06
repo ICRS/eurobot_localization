@@ -92,7 +92,7 @@ const char *dev_string = "/dev/ttyS0";
 
 int main(int argc, char* argv[])
 {
-    camera_id = atoi(argv[1]);
+    camera_id = atoi(argv[2]);
     pdev = open(dev_string, O_RDWR | O_NOCTTY | O_SYNC);
     if (pdev == -1) {
         printf("Failed to open %s!\n", dev_string);
