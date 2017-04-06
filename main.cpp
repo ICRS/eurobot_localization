@@ -63,8 +63,6 @@ cv::Vec3f compute_chili_tag_location(const std::string & name, const chilitags::
     cv::Vec3f scaled_raw_euclid = raw_euclid * PIXEL_TO_CM;
     cv::Vec3f tag_location = lookup_chili_tag_location(name);
 
-    std::cout << "scaled euclid = (" << scaled_raw_euclid[0] << ", " << scaled_raw_euclid[1] << ", " <<  scaled_raw_euclid[2] << ")" << std::endl;
-    std::cout << "tag location (in cm) = (" << tag_location[0] << ", " << tag_location[1] << ", " <<  tag_location[2] << ")" << std::endl;
     return tag_location - cv::Vec3f(scaled_raw_euclid[0], scaled_raw_euclid[2], -scaled_raw_euclid[1]);
 }
 
@@ -76,11 +74,12 @@ float align_angle(const float a)
 
 float compute_chili_tag_angle(const std::string& name, const chilitags::Chilitags3D::TransformMatrix & projection)
 {
-    cv::Vec4f v1_homo = {0.f, 0.f, 0.f, 1.f};
+    cv::Vec4f v1_homo = {0.f, 0.f, 1.f, 1.f};
     cv::Vec4f v2_homo = projection * v1_homo;
     cv::Vec3f v1 = cv::Vec3f(v1_homo[0] / v1_homo[3], v1_homo[1] / v1_homo[3], v1_homo[2] / v1_homo[3]);
-    cv::Vec3f v2 = cv::Vec3f(v2_homo[0] / v2_homo[3], v2_homo[1] / v2_homo[3], v2_homo[2] / v2_homo[3]);
-    return align_angle(std::acos(v1.dot(v2) / compute_magnitude(v1) / compute_magnitude(v2)) + lookup_chili_tag_angle(name));
+    cv::Vec3f v2 = -cv::Vec3f(v2_homo[0] / v2_homo[3], v2_homo[1] / v2_homo[3], v2_homo[2] / v2_homo[3]);
+    std::cout << "Tag angle = " << lookup_chili_tag_angle(name) << std::endl;
+    return std::acos(v1.dot(v2) / compute_magnitude(v1) / compute_magnitude(v2)) + lookup_chili_tag_angle(name);
 }
 
 int main(int argc, char* argv[])
