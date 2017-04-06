@@ -1,10 +1,4 @@
-#include <errno.h>
-#include <fcntl.h> 
-#include <string.h>
-#include <termios.h>
-#include <unistd.h>
-#include <stdio.h>
-
+#include "uart.hpp"
 
 // ref: http://stackoverflow.com/questions/6947413/how-to-open-read-and-write-from-serial-port-in-c
 int

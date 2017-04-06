@@ -21,6 +21,8 @@
 #include <iostream>
 #include <string>
 #include <cmath>
+#include <chrono>
+#include <thread>
 
 #include <chilitags/chilitags.hpp>
 
@@ -30,6 +32,7 @@
 #include <opencv2/imgproc/imgproc.hpp> // for camera capture
 
 #include "lookup_table.hpp"
+#include "uart.hpp"
 
 using namespace std;
 using namespace cv;
@@ -39,6 +42,7 @@ static const float DEFAULT_SIZE = 20.f;
 static const float MARKER_WIDTH = 5.5f;
 static const float CM_TO_PIXEL = 4.92;
 static const float PIXEL_TO_CM = 1 / CM_TO_PIXEL;
+static int camera_id = 0;
 
 /* Note:
 - Euclidean space == coordinates in terms of (x, y, z), in that order..
@@ -82,8 +86,19 @@ float compute_chili_tag_angle(const std::string& name, const chilitags::Chilitag
     return std::acos(v1.dot(v2) / compute_magnitude(v1) / compute_magnitude(v2)) + lookup_chili_tag_angle(name);
 }
 
+
+int pdev;
+const char *dev_string = "/dev/ttyS0";
+
 int main(int argc, char* argv[])
 {
+    pdev = open(dev_string, O_RDWR | O_NOCTTY | O_SYNC);
+    if (pdev == -1) {
+        printf("Failed to open %s!\n", dev_string);
+        return -1;
+    }
+    uart_set_interface_attribs(pdev, B115200, 0);
+    uart_set_blocking(pdev, 0);
     cout
         << "Usage: "<< argv[0]
         << " [-c <tag configuration (YAML)>] [-i <camera calibration (YAML)>]\n";
@@ -144,77 +159,46 @@ int main(int argc, char* argv[])
     /*****************************/
     /*             Go!           */
     /*****************************/
-    cv::namedWindow("Pose Estimation");
 
     for (; 'q' != (char) cv::waitKey(10); ) {
         cv::Mat inputImage;
         capture.read(inputImage);
         cv::Mat outputImage = inputImage.clone();
 
+        int N = 0;
+        cv::Vec3f camera_location;
+        float angle = 0;
+
         for (auto& kv : chilitags3D.estimate(inputImage)) {
 
             /* the location of the top left corner in euclidean space. */
-            cv::Vec3f camera_location = compute_chili_tag_location(kv.first, kv.second);
-            float angle = compute_chili_tag_angle(kv.first, kv.second);
-
-            std::cout << "angle = " << (angle * 180.0 / PI) << std::endl;
-            std::cout << "location = ("
-                    << camera_location[0] << ", "
-                    << camera_location[1] << ", "
-                    <<  camera_location[2] << ")" << std::endl;
-
-            // the original program goes here.
-
-            static const cv::Vec4f UNITS[4] {
-                {0.f, 0.f, 0.f, 1.f},
-                {DEFAULT_SIZE, 0.f, 0.f, 1.f},
-                {0.f, DEFAULT_SIZE, 0.f, 1.f},
-                {0.f, 0.f, DEFAULT_SIZE, 1.f},
-            };
-
-            cv::Matx44f transformation = kv.second;
-            cv::Vec4f referential[4] = {
-                projection*transformation*UNITS[0],
-                projection*transformation*UNITS[1],
-                projection*transformation*UNITS[2],
-                projection*transformation*UNITS[3],
-            };
-
-            std::vector<cv::Point2f> t2DPoints;
-            for (auto homogenousPoint : referential)
-                t2DPoints.push_back(cv::Point2f(
-                                        homogenousPoint[0]/homogenousPoint[3],
-                                        homogenousPoint[1]/homogenousPoint[3]));
-
-            static const int SHIFT = 16;
-            static const float PRECISION = 1<<SHIFT;
-            static const std::string AXIS_NAMES[3] = { "x", "y", "z" };
-            static const cv::Scalar AXIS_COLORS[3] = {
-                {0,0,255},{0,255,0},{255,0,0},
-            };
-            for (int i : {1,2,3}) {
-                cv::line(
-                    outputImage,
-                    PRECISION*t2DPoints[0],
-                    PRECISION*t2DPoints[i],
-                    AXIS_COLORS[i-1],
-#ifdef OPENCV3
-                    1, cv::LINE_AA, SHIFT);
-#else
-                    1, CV_AA, SHIFT);
-#endif
-                cv::putText(outputImage, AXIS_NAMES[i-1], t2DPoints[i],
-                            cv::FONT_HERSHEY_SIMPLEX, 0.5f, AXIS_COLORS[i-1]);
-            }
-
-            cv::putText(outputImage, kv.first, t2DPoints[0],
-                        cv::FONT_HERSHEY_SIMPLEX, 0.5f, cv::Scalar(255,255,255));
+            camera_location += compute_chili_tag_location(kv.first, kv.second);
+            angle += compute_chili_tag_angle(kv.first, kv.second);
+            N++;
         }
 
-        cv::imshow("Pose Estimation", outputImage);
+        
+        if (N != 0) {
+            angle = angle / N;
+            camera_location = camera_location / N;
+
+            float x = camera_location[0];
+            float y = camera_location[1];
+            float theta = angle;
+            uint8_t buffer[3 * sizeof(float)];
+
+            std::cout << "x = " << x << ", y = " << y << ", theta = " << theta << std::endl;
+            memcpy(buffer + 0, (void*) &camera_id, sizeof(int));
+            memcpy(buffer + 4, (void*) &x, sizeof(float));
+            memcpy(buffer + 8, (void*) &y, sizeof(float));
+            memcpy(buffer + 12, (void*) &theta, sizeof(float));
+            write(pdev, (void*) buffer, 3 * sizeof(float));
+        } else {
+            std::cout << "No tags detected" << std::endl;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 
-    cv::destroyWindow("Pose Estimation");
     capture.release();
 
     return 0;
