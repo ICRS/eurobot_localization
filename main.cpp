@@ -29,6 +29,8 @@
 #include <opencv2/highgui/highgui.hpp> // for camera capture
 #include <opencv2/imgproc/imgproc.hpp> // for camera capture
 
+#include "lookup_table.hpp"
+
 using namespace std;
 using namespace cv;
 
@@ -40,19 +42,8 @@ const float PI = 3.1415926535;
 - Angles all in radians, please.
 */
 
-/* Returns the location of the chilitags in euclidean space. */
-cv::Vec3f lookup_chili_tag_location(const std::string & location)
-{
-    return cv::Vec3f(0, 0, 0);
-}
-
-float lookup_chili_tag_angle(const std::string & location)
-{
-    return 0.0;
-}
-
 /* Returns the location of the chilitags in euclidean space, where the origin is the camera's location. */
-cv::Vec3f compute_chili_tag_relative_location(const chilitags::Chilitags3D::TransformMatrix & transformation)
+cv::Vec3f compute_chili_tag_location(const std::string & name, const chilitags::Chilitags3D::TransformMatrix & transformation)
 {
     cv::Vec4f reading = {0.f, 0.f, 0.f, 1.f};
     cv::Vec4f raw_homo = transformation * reading;
@@ -60,7 +51,18 @@ cv::Vec3f compute_chili_tag_relative_location(const chilitags::Chilitags3D::Tran
             raw_homo[0] / raw_homo[3],
             raw_homo[1] / raw_homo[3],
             raw_homo[2] / raw_homo[3]);
-    return cv::Vec3f(raw_euclid[1], raw_euclid[2], -raw_euclid[0]);
+    cv::Vec3f tag_location = lookup_chili_tag_location(name);
+
+    std::cout << "Name = " << name << std::endl;
+    std::cout << "euclid = ("
+            << raw_euclid[0] << ", "
+            << raw_euclid[1] << ", "
+            <<  raw_euclid[2] << ")" << std::endl;
+    std::cout << "tag location = ("
+            << tag_location[0] << ", "
+            << tag_location[1] << ", "
+            <<  tag_location[2] << ")" << std::endl;
+    return cv::Vec3f(raw_euclid[1], raw_euclid[2], -raw_euclid[0]) - lookup_chili_tag_location(name);
 }
 
 float compute_magnitude(const cv::Vec3f &v)
@@ -155,12 +157,18 @@ int main(int argc, char* argv[])
         for (auto& kv : chilitags3D.estimate(inputImage)) {
 
             /* the location of the top left corner in euclidean space. */
-            cv::Vec3f camera_location = compute_chili_tag_relative_location(kv.second) - lookup_chili_tag_location(kv.first);
+            cv::Vec3f camera_location = compute_chili_tag_location(kv.first, kv.second);
             float angle = compute_chili_tag_angle(kv.first, kv.second);
+
+            std::cout << "angle = " << (angle * 180.0 / PI) << std::endl;
+            std::cout << "location = ("
+                    << camera_location[0] << ", "
+                    << camera_location[1] << ", "
+                    <<  camera_location[2] << ")" << std::endl;
 
             // the original program goes here.
 
-            static const float DEFAULT_SIZE = 4.6f;
+            static const float DEFAULT_SIZE = 20.f;
             static const cv::Vec4f UNITS[4] {
                 {0.f, 0.f, 0.f, 1.f},
                 {DEFAULT_SIZE, 0.f, 0.f, 1.f},
