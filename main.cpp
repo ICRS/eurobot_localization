@@ -92,6 +92,7 @@ const char *dev_string = "/dev/ttyS0";
 
 int main(int argc, char* argv[])
 {
+    camera_id = atoi(argv[1]);
     pdev = open(dev_string, O_RDWR | O_NOCTTY | O_SYNC);
     if (pdev == -1) {
         printf("Failed to open %s!\n", dev_string);
@@ -185,14 +186,14 @@ int main(int argc, char* argv[])
             float x = camera_location[0];
             float y = camera_location[1];
             float theta = angle;
-            uint8_t buffer[3 * sizeof(float)];
+            uint8_t buffer[4 * sizeof(float)];
 
             std::cout << "x = " << x << ", y = " << y << ", theta = " << theta << std::endl;
             memcpy(buffer + 0, (void*) &camera_id, sizeof(int));
             memcpy(buffer + 4, (void*) &x, sizeof(float));
             memcpy(buffer + 8, (void*) &y, sizeof(float));
             memcpy(buffer + 12, (void*) &theta, sizeof(float));
-            write(pdev, (void*) buffer, 3 * sizeof(float));
+            write(pdev, (void*) buffer, 4 * sizeof(float));
         } else {
             std::cout << "No tags detected" << std::endl;
         }
