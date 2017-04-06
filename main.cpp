@@ -35,6 +35,10 @@ using namespace std;
 using namespace cv;
 
 const float PI = 3.1415926535;
+static const float DEFAULT_SIZE = 20.f;
+static const float MARKER_WIDTH = 5.5f;
+static const float CM_TO_PIXEL = 4.92;
+static const float PIXEL_TO_CM = 1 / CM_TO_PIXEL;
 
 /* Note:
 - Euclidean space == coordinates in terms of (x, y, z), in that order..
@@ -43,6 +47,11 @@ const float PI = 3.1415926535;
 */
 
 /* Returns the location of the chilitags in euclidean space, where the origin is the camera's location. */
+float compute_magnitude(const cv::Vec3f &v)
+{
+    return std::sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+}
+
 cv::Vec3f compute_chili_tag_location(const std::string & name, const chilitags::Chilitags3D::TransformMatrix & transformation)
 {
     cv::Vec4f reading = {0.f, 0.f, 0.f, 1.f};
@@ -51,23 +60,12 @@ cv::Vec3f compute_chili_tag_location(const std::string & name, const chilitags::
             raw_homo[0] / raw_homo[3],
             raw_homo[1] / raw_homo[3],
             raw_homo[2] / raw_homo[3]);
+    cv::Vec3f scaled_raw_euclid = raw_euclid * PIXEL_TO_CM;
     cv::Vec3f tag_location = lookup_chili_tag_location(name);
 
-    std::cout << "Name = " << name << std::endl;
-    std::cout << "euclid = ("
-            << raw_euclid[0] << ", "
-            << raw_euclid[1] << ", "
-            <<  raw_euclid[2] << ")" << std::endl;
-    std::cout << "tag location = ("
-            << tag_location[0] << ", "
-            << tag_location[1] << ", "
-            <<  tag_location[2] << ")" << std::endl;
-    return cv::Vec3f(raw_euclid[1], raw_euclid[2], -raw_euclid[0]) - lookup_chili_tag_location(name);
-}
-
-float compute_magnitude(const cv::Vec3f &v)
-{
-    return std::sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+    std::cout << "scaled euclid = (" << scaled_raw_euclid[0] << ", " << scaled_raw_euclid[1] << ", " <<  scaled_raw_euclid[2] << ")" << std::endl;
+    std::cout << "tag location (in cm) = (" << tag_location[0] << ", " << tag_location[1] << ", " <<  tag_location[2] << ")" << std::endl;
+    return tag_location - cv::Vec3f(scaled_raw_euclid[0], scaled_raw_euclid[2], -scaled_raw_euclid[1]);
 }
 
 float align_angle(const float a)
@@ -168,7 +166,6 @@ int main(int argc, char* argv[])
 
             // the original program goes here.
 
-            static const float DEFAULT_SIZE = 20.f;
             static const cv::Vec4f UNITS[4] {
                 {0.f, 0.f, 0.f, 1.f},
                 {DEFAULT_SIZE, 0.f, 0.f, 1.f},
