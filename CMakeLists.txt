@@ -27,3 +27,5 @@ find_package(OpenCV REQUIRED)
 add_executable( main main.cpp uart.cpp)
 target_link_libraries( main chilitags_static )
 target_link_libraries( main ${OpenCV_LIBS} )
+
+add_executable( test test.cpp uart.cpp)
